@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sky Glass</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --glass: rgba(255, 255, 255, 0.14);
+    --glass-strong: rgba(255, 255, 255, 0.22);
+    --glass-border: rgba(255, 255, 255, 0.35);
+    --text: #ffffff;
+    --soft: rgba(255, 255, 255, 0.78);
+    --accent: #ffd36b;
+    --cloud: rgba(255, 255, 255, 0.92);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { min-height: 100%; }
+  body {
+    font-family: "Nunito", "Segoe UI", system-ui, sans-serif;
+    color: var(--text);
+    background: #4a8fd6;
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  /* ---------- Background layers (sky, sun/moon, stars, clouds, rain) ---------- */
+  .sky { position: fixed; inset: 0; z-index: 0; transition: opacity 2.5s ease; }
+  #stars, #celestial, #clouds, #rain { position: fixed; inset: 0; pointer-events: none; }
+  #celestial { z-index: 1; }
+  #stars { z-index: 1; transition: opacity 2s; }
+  #clouds { z-index: 2; overflow: hidden; }
+  #rain { z-index: 3; overflow: hidden; }
+
+  .sun {
+    position: absolute; top: 70px; right: 12%;
+    width: 130px; height: 130px; border-radius: 50%;
+    background: radial-gradient(circle, #fff7d1 0%, #ffd95a 45%, rgba(255, 200, 60, 0) 72%);
+    box-shadow: 0 0 120px 40px rgba(255, 215, 100, 0.35);
+    transition: opacity 2s, background 2s, box-shadow 2s;
+    animation: glow 6s ease-in-out infinite;
+  }
+  .sun.moon {
+    background: radial-gradient(circle at 40% 40%, #ffffff 0%, #e8ecff 40%, rgba(200, 210, 255, 0) 70%);
+    box-shadow: 0 0 80px 20px rgba(190, 200, 255, 0.25);
+  }
+  .sun.hidden { opacity: 0; }
+  @keyframes glow { 50% { transform: scale(1.06); } }
+
+  .star { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #fff; animation: twinkle 3s ease-in-out infinite; }
+  @keyframes twinkle { 50% { opacity: 0.2; } }
+
+  .cloud-wrap {
+    position: absolute; left: 0;
+    pointer-events: auto; cursor: pointer;
+    animation: drift linear infinite;
+  }
+  @keyframes drift {
+    from { transform: translateX(-320px); }
+    to   { transform: translateX(calc(100vw + 60px)); }
+  }
+  .cloud {
+    position: relative; width: 170px; height: 52px;
+    background: var(--cloud); border-radius: 60px;
+    transform: scale(var(--s, 1));
+    filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.08));
+    transition: background 2s;
+  }
+  .cloud::before, .cloud::after { content: ""; position: absolute; background: inherit; border-radius: 50%; }
+  .cloud::before { width: 72px; height: 72px; top: -36px; left: 26px; }
+  .cloud::after  { width: 92px; height: 92px; top: -52px; left: 64px; }
+  .cloud.puff { animation: puff 0.6s ease; }
+  @keyframes puff {
+    40% { transform: scale(calc(var(--s, 1) * 1.15)); filter: brightness(1.2); }
+  }
+
+  .drop {
+    position: absolute; top: -30px; width: 2px; height: 20px;
+    background: linear-gradient(transparent, rgba(255, 255, 255, 0.75));
+    animation: fall linear infinite;
+  }
+  @keyframes fall { to { transform: translate(-30px, 110vh); } }
+
+  /* ---------- Glass elements ---------- */
+  .glass {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  }
+  .float { animation: none !important; }  /* cards stay still */
+
+  /* ---------- Header ---------- */
+  header {
+    position: relative; z-index: 5;
+    max-width: 960px; margin: 0 auto; padding: 18px 16px 0;
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+  }
+  .brand { font-weight: 800; font-size: 1.25rem; letter-spacing: 0.5px; text-shadow: 0 2px 10px rgba(0,0,0,0.15); }
+  nav { display: flex; gap: 6px; padding: 5px; border-radius: 999px; }
+  nav a {
+    color: var(--text); text-decoration: none; padding: 7px 16px; border-radius: 999px;
+    font-weight: 600; font-size: 0.95rem; transition: background 0.3s;
+  }
+  nav a.active, nav a:hover { background: var(--glass-strong); }
+  .tools { display: flex; gap: 8px; align-items: center; }
+  .search { position: relative; }
+  .search input {
+    width: 200px; padding: 9px 16px; border-radius: 999px; color: var(--text);
+    font: inherit; outline: none;
+  }
+  .search input::placeholder { color: var(--soft); }
+  .results {
+    position: absolute; top: calc(100% + 6px); left: 0; right: 0; min-width: 240px;
+    padding: 6px; display: none; z-index: 10; border-radius: 16px;
+    background: rgba(40, 60, 90, 0.55);
+  }
+  .results.open { display: block; }
+  .results button {
+    display: block; width: 100%; text-align: left; padding: 9px 12px; border: 0; border-radius: 10px;
+    background: transparent; color: var(--text); font: inherit; cursor: pointer;
+  }
+  .results button:hover, .results button:focus { background: var(--glass-strong); outline: none; }
+  .results small { color: var(--soft); }
+  .icon-btn {
+    padding: 9px 14px; border-radius: 999px; color: var(--text); font: inherit; font-weight: 600; cursor: pointer;
+  }
+
+  /* ---------- Pages ---------- */
+  main {
+    position: relative; z-index: 5;
+    max-width: 960px; margin: 0 auto; padding: 28px 16px 190px;
+    pointer-events: none;           /* let taps fall through to the clouds… */
+  }
+  main > * { pointer-events: auto; } /* …except on the actual content */
+  .page { display: none; }
+  .page.active { display: block; animation: appear 0.6s ease; }
+  @keyframes appear { from { opacity: 0; transform: translateY(14px); } }
+
+  .hero { max-width: 420px; margin: 4vh auto 0; padding: 30px 28px; text-align: center; }
+  .place { font-size: 1.05rem; font-weight: 600; color: var(--soft); }
+  .cond { margin-top: 4px; font-size: 1rem; }
+  .temp { font-size: clamp(5rem, 22vw, 8rem); font-weight: 300; line-height: 1; margin: 10px 0 6px; text-shadow: 0 6px 30px rgba(0,0,0,0.15); }
+  .feels { font-size: 1.1rem; color: var(--soft); }
+
+  .hilo { display: flex; justify-content: center; gap: 22px; margin-top: 12px; font-size: 1.15rem; color: var(--soft); }
+  .hilo b { color: var(--text); font-weight: 800; }
+
+  .tip { max-width: 420px; margin: 22px auto 0; padding: 18px 24px; text-align: center; animation-delay: -1.5s; }
+  .tip-text { font-size: 1.15rem; font-weight: 600; line-height: 1.45; }
+  .link-btn {
+    margin-top: 8px; background: none; border: 0; color: var(--soft); font: inherit; font-size: 0.85rem;
+    cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
+  }
+  .name-form label { display: block; font-weight: 600; margin-bottom: 10px; }
+  .name-row { display: flex; gap: 8px; justify-content: center; }
+  .name-row input {
+    flex: 1; max-width: 220px; padding: 9px 16px; border-radius: 999px; color: var(--text); font: inherit; outline: none;
+  }
+  .name-row input::placeholder { color: var(--soft); }
+
+  .compare { max-width: 420px; margin: 22px auto 0; padding: 20px 24px; text-align: center; animation-delay: -3s; }
+  .cmp-big { font-size: 2rem; font-weight: 800; }
+  .cmp-text { color: var(--soft); margin-top: 4px; line-height: 1.4; }
+
+  h2 { font-weight: 800; font-size: 1.5rem; margin-bottom: 16px; text-shadow: 0 2px 10px rgba(0,0,0,0.12); }
+  .week-list { display: grid; gap: 10px; }
+  .day-card { border-radius: 18px; overflow: hidden; }
+  .day {
+    display: grid; grid-template-columns: 70px 40px 64px 1fr 18px; align-items: center; gap: 10px;
+    padding: 14px 18px; cursor: pointer; transition: background 0.25s; outline: none;
+  }
+  .day:hover, .day:focus-visible { background: rgba(255,255,255,0.08); }
+  .chev { text-align: center; color: var(--soft); transition: transform 0.3s; }
+  .day[aria-expanded="true"] .chev { transform: rotate(180deg); }
+  .day-details { padding: 4px 18px 18px; border-top: 1px solid rgba(255,255,255,0.15); animation: appear 0.35s ease; }
+  .dd-title { font-weight: 800; font-size: 1.05rem; margin: 12px 0 10px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+  .stat { background: rgba(255,255,255,0.1); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+  .stat span { font-size: 0.82rem; color: var(--soft); }
+  .stat b { font-size: 1rem; }
+  .hours { display: flex; gap: 8px; margin-top: 12px; overflow-x: auto; padding-bottom: 4px; }
+  .hour { flex: 1 0 64px; text-align: center; background: rgba(255,255,255,0.08); border-radius: 12px; padding: 8px 4px; }
+  .h-time { font-size: 0.78rem; color: var(--soft); }
+  .h-ico { font-size: 1.3rem; margin: 2px 0; }
+  .h-temp { font-weight: 800; }
+  .h-rain { font-size: 0.72rem; color: #bfe6ff; }
+  .day .name { font-weight: 800; }
+  .day .ico { font-size: 1.6rem; text-align: center; }
+  .day .rain { color: #bfe6ff; font-size: 0.9rem; }
+  .range { display: grid; grid-template-columns: 38px 1fr 38px; align-items: center; gap: 8px; font-weight: 600; }
+  .range .lo { color: var(--soft); text-align: right; }
+  .track { position: relative; height: 8px; border-radius: 8px; background: rgba(255,255,255,0.18); }
+  .bar { position: absolute; top: 0; bottom: 0; border-radius: 8px; background: linear-gradient(90deg, #8fd3ff, #ffd36b, #ff9a5a); }
+
+  .graphs { display: grid; gap: 18px; }
+  .chart-card { padding: 18px 18px 12px; animation: none !important; } /* graphs stay still */
+  .chart-card:nth-child(2) { animation-delay: -2.5s; }
+  .chart-card:nth-child(3) { animation-delay: -5s; }
+  .chart-card h3 { font-size: 1.05rem; font-weight: 800; margin-bottom: 2px; }
+  .chart-card p { color: var(--soft); font-size: 0.88rem; margin-bottom: 8px; }
+  canvas { width: 100%; height: 190px; display: block; cursor: crosshair; touch-action: pan-y; }
+  .hint { font-size: 0.9rem; font-weight: 400; color: var(--soft); margin-left: 8px; }
+
+
+  .credit {
+    position: fixed; left: 16px; bottom: 16px; z-index: 6;
+    padding: 7px 14px; border-radius: 999px; font-size: 0.85rem; font-weight: 600; color: var(--soft);
+  }
+
+  /* ---------- Character ---------- */
+  #buddy {
+    position: fixed; right: 16px; bottom: 10px; width: 130px; z-index: 6;
+    cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
+  }
+  #buddy svg { width: 100%; display: block; animation: bob 3s ease-in-out infinite; overflow: visible; }
+  #buddy.hop svg { animation: hop 0.55s ease; }
+  @keyframes bob { 50% { transform: translateY(-6px); } }
+  @keyframes hop { 30% { transform: translateY(-26px) rotate(-6deg); } 60% { transform: translateY(0) scaleY(0.92); } }
+  #eyes { transform-box: fill-box; transform-origin: center; animation: blink 5s infinite; }
+  @keyframes blink { 0%, 95%, 100% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
+  .acc { opacity: 0; transform: translateY(-14px); transition: opacity 0.7s, transform 0.7s; transform-box: view-box; }
+  .acc.show { opacity: 1; transform: none; }
+  #umbrella.show { animation: sway 4s ease-in-out infinite; transform-origin: 138px 118px; }
+  @keyframes sway { 50% { transform: rotate(-5deg); } }
+  .bubble {
+    position: absolute; bottom: 100%; right: 8px; width: max-content; max-width: 210px;
+    padding: 10px 14px; font-weight: 600; font-size: 0.92rem; border-radius: 18px 18px 4px 18px;
+    background: rgba(255, 255, 255, 0.28);
+    opacity: 0; transform: translateY(8px) scale(0.9); transition: 0.35s; pointer-events: none;
+  }
+  .bubble.show { opacity: 1; transform: none; }
+
+  @media (max-width: 640px) {
+    header { justify-content: center; }
+    .search input { width: 160px; }
+    #buddy { width: 100px; }
+    .day { grid-template-columns: 44px 30px 48px 1fr 14px; padding: 12px 12px; gap: 6px; }
+    .range { grid-template-columns: 30px 1fr 30px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.001s !important; animation-iteration-count: 1 !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Two sky layers so we can cross-fade between gradients -->
+<div class="sky" id="skyA" style="opacity:1"></div>
+<div class="sky" id="skyB" style="opacity:0"></div>
+<div id="stars"></div>
+<div id="celestial"><div class="sun hidden" id="sun"></div></div>
+<div id="clouds"></div>
+<div id="rain"></div>
+
+<header>
+  <div class="brand">☁ Sky Glass</div>
+  <nav class="glass">
+    <a href="#home">Now</a>
+    <a href="#week">Week</a>
+    <a href="#graphs">Graphs</a>
+  </nav>
+  <div class="tools">
+    <div class="search">
+      <input id="q" class="glass" placeholder="Search a city…" autocomplete="off" aria-label="Search a city">
+      <div id="results" class="glass results"></div>
+    </div>
+    <button id="soundBtn" class="glass icon-btn" title="Sound on/off">🔊</button>
+  </div>
+</header>
+
+<main>
+  <!-- HOME: only the essentials -->
+  <section class="page" id="page-home">
+    <div class="glass hero float">
+      <div class="place" id="place">Shebin el-Kom, Egypt</div>
+      <div class="cond" id="cond">Loading…</div>
+      <div class="temp" id="temp">--°</div>
+      <div class="feels" id="feels">Feels like --°</div>
+      <div class="hilo">
+        <span title="Today's highest">↑ <b id="hi">--°</b></span>
+        <span title="Today's lowest">↓ <b id="lo">--°</b></span>
+      </div>
+    </div>
+    <div class="glass compare float">
+      <div class="cmp-big" id="cmpBig">…</div>
+      <div class="cmp-text" id="cmpText">Comparing with this week…</div>
+    </div>
+
+    <!-- Personal tip, e.g. "Wear a jacket, Hema!" -->
+    <div class="glass tip float">
+      <div id="tipView">
+        <div class="tip-text" id="tipText">…</div>
+        <button class="link-btn" id="editName">✏️ change name</button>
+      </div>
+      <form id="nameForm" class="name-form" hidden>
+        <label for="nameInput">👋 What should I call you?</label>
+        <div class="name-row">
+          <input id="nameInput" class="glass" maxlength="24" placeholder="Your name" autocomplete="given-name">
+          <button type="submit" class="glass icon-btn">Save</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- WEEK -->
+  <section class="page" id="page-week">
+    <h2>Next 7 days</h2>
+    <div class="week-list" id="weekList"></div>
+  </section>
+
+  <!-- GRAPHS -->
+  <section class="page" id="page-graphs">
+    <h2>Graphs</h2>
+    <div class="graphs">
+      <div class="glass chart-card float">
+        <h3>Temperature, next 24 hours</h3>
+        <p>From the <code>hourly.temperature_2m</code> array</p>
+        <canvas id="chartTemp"></canvas>
+      </div>
+      <div class="glass chart-card float">
+        <h3>Chance of rain, next 24 hours</h3>
+        <p>From <code>hourly.precipitation_probability</code></p>
+        <canvas id="chartRain"></canvas>
+      </div>
+      <div class="glass chart-card float">
+        <h3>Past 7 days at this hour</h3>
+        <p>Same hour each day (thanks to <code>past_days=7</code>); the dashed line is the average</p>
+        <canvas id="chartPast"></canvas>
+      </div>
+    </div>
+  </section>
+</main>
+
+
+<div class="credit glass">Made with 💙 by Hema</div>
+
+<!-- The weather buddy -->
+<div id="buddy" role="button" aria-label="Weather buddy, tap to hear what it says">
+  <div class="bubble glass" id="bubble"></div>
+  <svg viewBox="0 0 160 170" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="cloudFill" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ffffff"/>
+        <stop offset="1" stop-color="#dce8f7"/>
+      </linearGradient>
+    </defs>
+    <!-- umbrella (rain) -->
+    <g id="umbrella" class="acc">
+      <line x1="138" y1="40" x2="138" y2="118" stroke="#5a4636" stroke-width="4" stroke-linecap="round"/>
+      <path d="M138 118 q0 9 -8 9" fill="none" stroke="#5a4636" stroke-width="4" stroke-linecap="round"/>
+      <path d="M96 46 Q138 -4 180 46 Q169.5 37 159 46 Q148.5 37 138 46 Q127.5 37 117 46 Q106.5 37 96 46 Z" fill="#ff6b8b"/>
+      <path d="M138 4 Q121 22 117 46 Q127.5 37 138 46 Z" fill="#ff8fa8"/>
+    </g>
+    <!-- soft shadow -->
+    <ellipse cx="80" cy="162" rx="52" ry="5" fill="#000" opacity="0.12"/>
+    <!-- cloud body: a few overlapping circles + a rounded base -->
+    <g fill="url(#cloudFill)" stroke="rgba(120,150,190,0.25)" stroke-width="1.5">
+      <circle cx="50" cy="106" r="28"/>
+      <circle cx="88" cy="90" r="38"/>
+      <circle cx="122" cy="112" r="24"/>
+      <rect x="16" y="104" width="130" height="50" rx="25"/>
+    </g>
+    <!-- hide inner outlines where shapes overlap -->
+    <g fill="url(#cloudFill)">
+      <circle cx="50" cy="106" r="26.5"/>
+      <circle cx="88" cy="90" r="36.5"/>
+      <circle cx="122" cy="112" r="22.5"/>
+      <rect x="17.5" y="105.5" width="127" height="47" rx="23.5"/>
+    </g>
+    <ellipse cx="74" cy="72" rx="16" ry="7" fill="#fff" opacity="0.9"/>
+    <!-- face -->
+    <g id="eyes">
+      <circle cx="66" cy="112" r="5.5" fill="#34405a"/>
+      <circle cx="96" cy="112" r="5.5" fill="#34405a"/>
+      <circle cx="68" cy="110" r="1.8" fill="#fff"/>
+      <circle cx="98" cy="110" r="1.8" fill="#fff"/>
+    </g>
+    <circle cx="55" cy="125" r="6.5" fill="#ff9aa8" opacity="0.55"/>
+    <circle cx="107" cy="125" r="6.5" fill="#ff9aa8" opacity="0.55"/>
+    <path id="mouth" d="M72 126 Q81 135 90 126" fill="none" stroke="#34405a" stroke-width="3" stroke-linecap="round"/>
+    <!-- sunglasses (hot) -->
+    <g id="shades" class="acc">
+      <rect x="53" y="104" width="25" height="15" rx="6" fill="#1f2430"/>
+      <rect x="84" y="104" width="25" height="15" rx="6" fill="#1f2430"/>
+      <line x1="77" y1="109" x2="85" y2="109" stroke="#1f2430" stroke-width="3"/>
+      <line x1="58" y1="108" x2="65" y2="108" stroke="#fff" stroke-width="2" opacity="0.6" stroke-linecap="round"/>
+      <line x1="89" y1="108" x2="96" y2="108" stroke="#fff" stroke-width="2" opacity="0.6" stroke-linecap="round"/>
+    </g>
+    <!-- scarf (cold) -->
+    <g id="scarf" class="acc">
+      <rect x="22" y="138" width="118" height="12" rx="6" fill="#e8505b"/>
+      <rect x="112" y="141" width="13" height="26" rx="5" fill="#e8505b" transform="rotate(-14 118 141)"/>
+      <line x1="40" y1="140" x2="40" y2="148" stroke="#fff" stroke-width="2.5" opacity="0.6"/>
+      <line x1="62" y1="140" x2="62" y2="148" stroke="#fff" stroke-width="2.5" opacity="0.6"/>
+      <line x1="84" y1="140" x2="84" y2="148" stroke="#fff" stroke-width="2.5" opacity="0.6"/>
+      <line x1="106" y1="140" x2="106" y2="148" stroke="#fff" stroke-width="2.5" opacity="0.6"/>
+    </g>
+  </svg>
+</div>
+
+<script>
+/* =====================================================================
+   HOW THIS SITE TALKS TO AN API — read this first!
+   ---------------------------------------------------------------------
+   An API (Application Programming Interface) is just a web address that
+   gives back DATA instead of a web page. You ask by visiting a URL, and
+   the server answers with JSON: text shaped like a JavaScript object.
+
+   We use two free Open-Meteo APIs (no account or key needed):
+
+   1) Forecast API:  https://api.open-meteo.com/v1/forecast?...
+   2) Geocoding API: https://geocoding-api.open-meteo.com/v1/search?...
+
+   Everything after "?" is the QUERY STRING: key=value pairs joined by "&".
+   They're the "settings" of our question: where, what data, how many days.
+
+   TRY IT: copy any URL that this page prints in the browser console
+   (F12 → Console), or click "see the raw JSON" at the bottom of the page,
+   and you'll see exactly what the API sends back.
+   ===================================================================== */
+
+const DEFAULT_PLACE = { name: "Shebin el-Kom, Egypt", lat: 30.5586, lon: 31.0104 };
+
+const state = {
+  place: DEFAULT_PLACE,
+  data: null,       // the JSON from the forecast API ends up here
+  requestId: 0,     // helps ignore old answers if the user searches quickly
+};
+
+const $ = (sel) => document.querySelector(sel);
+
+/* ---------------------------------------------------------------------
+   STEP 1: Build the URL (our "question" to the API)
+   --------------------------------------------------------------------- */
+function buildForecastUrl(lat, lon) {
+  const params = [
+    `latitude=${lat}`,
+    `longitude=${lon}`,
+    // "current" = the values right now
+    `current=temperature_2m,apparent_temperature,weather_code,is_day,wind_speed_10m,cloud_cover`,
+    // "hourly" = one value per hour. We get arrays like [21.3, 20.8, ...]
+    `hourly=temperature_2m,precipitation_probability,weather_code,is_day`,
+    // "daily" = one value per day (max, min, sunrise, etc.)
+    `daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,` +
+      `apparent_temperature_max,apparent_temperature_min,sunrise,sunset,uv_index_max,` +
+      `wind_speed_10m_max,precipitation_sum`,
+    // past_days=7 asks for the last 7 days TOO, so we can compare "now"
+    // with the same hour on previous days.
+    `past_days=7`,
+    `forecast_days=7`,
+    // timezone=auto makes all times local to that city, not UTC.
+    `timezone=auto`,
+  ];
+  return "https://api.open-meteo.com/v1/forecast?" + params.join("&");
+}
+
+/* ---------------------------------------------------------------------
+   STEP 2: fetch() — send the request and wait for the answer
+   ---------------------------------------------------------------------
+   fetch(url) returns a PROMISE: a value that arrives later, because the
+   internet takes time. "await" pauses this function (not the whole page)
+   until the answer comes back. Functions that use await must be "async".
+   --------------------------------------------------------------------- */
+async function getWeather(lat, lon) {
+  const url = buildForecastUrl(lat, lon);
+  console.log("📡 Asking the forecast API:", url);
+
+  const response = await fetch(url);       // 1. send request, get a Response
+
+  if (!response.ok) {                      // 2. check the HTTP status (200 = OK)
+    throw new Error("API answered with status " + response.status);
+  }
+
+  const json = await response.json();      // 3. read the body and parse JSON → JS object
+  console.log("📦 The API sent back:", json);
+
+  /* The JSON looks roughly like this:
+     {
+       "current": { "time": "2026-11-13T14:15", "temperature_2m": 24.1,
+                    "apparent_temperature": 23.5, "weather_code": 1, "is_day": 1, ... },
+       "hourly":  { "time": ["2026-11-06T00:00", "2026-11-06T01:00", ...],
+                    "temperature_2m": [17.2, 16.8, ...],
+                    "precipitation_probability": [0, 0, ...] },
+       "daily":   { "time": ["2026-11-06", ...], "temperature_2m_max": [...], ... }
+     }
+     Note: hourly arrays are "parallel": hourly.time[5] goes with
+     hourly.temperature_2m[5]. That's how we look values up below. */
+  return json;
+}
+
+/* Geocoding API: turns a city name into latitude/longitude. */
+async function searchCity(name) {
+  const url = "https://geocoding-api.open-meteo.com/v1/search?name=" +
+              encodeURIComponent(name) +   // makes spaces/accents safe in a URL
+              "&count=5&language=en&format=json";
+  console.log("📡 Asking the geocoding API:", url);
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Geocoding failed: " + response.status);
+  const json = await response.json();
+  // If nothing matches, the API leaves out "results" entirely, so default to []
+  return json.results || [];
+}
+
+/* ---------------------------------------------------------------------
+   STEP 3: Load + handle errors (no internet, typo in URL, server down…)
+   --------------------------------------------------------------------- */
+async function loadPlace(place) {
+  const myRequest = ++state.requestId;
+  state.place = place;
+  try { localStorage.setItem("skyglass-place", JSON.stringify(place)); } catch (e) {}
+
+  $("#place").textContent = place.name;
+  $("#cond").textContent = "Loading…";
+
+  // Servers sometimes hiccup for a second, so we try up to 3 times before giving up.
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const data = await getWeather(place.lat, place.lon);
+      if (myRequest !== state.requestId) return;  // a newer search already started
+      state.data = data;
+      renderAll();
+      return;
+    } catch (err) {
+      console.error(`Attempt ${attempt} failed:`, err);
+      if (myRequest !== state.requestId) return;
+      if (attempt < 3) {
+        $("#cond").textContent = "Still trying…";
+        await new Promise((r) => setTimeout(r, 1500 * attempt));  // wait a bit, then retry
+      }
+    }
+  }
+  $("#cond").textContent = "Couldn't reach the weather API 😕 Check your internet.";
+}
+
+/* =====================================================================
+   Turning the JSON into things on screen
+   ===================================================================== */
+
+// Open-Meteo sends a number code for the weather type (WMO codes).
+function describe(code, isDay = 1) {
+  const map = {
+    0: ["Clear sky", isDay ? "☀️" : "🌙"], 1: ["Mostly clear", isDay ? "🌤️" : "🌙"],
+    2: ["Partly cloudy", "⛅"], 3: ["Overcast", "☁️"], 45: ["Fog", "🌫️"], 48: ["Icy fog", "🌫️"],
+    51: ["Light drizzle", "🌦️"], 53: ["Drizzle", "🌦️"], 55: ["Heavy drizzle", "🌧️"],
+    56: ["Freezing drizzle", "🌧️"], 57: ["Freezing drizzle", "🌧️"],
+    61: ["Light rain", "🌦️"], 63: ["Rain", "🌧️"], 65: ["Heavy rain", "🌧️"],
+    66: ["Freezing rain", "🌧️"], 67: ["Freezing rain", "🌧️"],
+    71: ["Light snow", "🌨️"], 73: ["Snow", "🌨️"], 75: ["Heavy snow", "❄️"], 77: ["Snow grains", "🌨️"],
+    80: ["Showers", "🌦️"], 81: ["Showers", "🌧️"], 82: ["Violent showers", "⛈️"],
+    85: ["Snow showers", "🌨️"], 86: ["Snow showers", "❄️"],
+    95: ["Thunderstorm", "⛈️"], 96: ["Thunderstorm & hail", "⛈️"], 99: ["Thunderstorm & hail", "⛈️"],
+  };
+  return map[code] || ["Unknown", "❔"];
+}
+const isRainy = (c) => (c >= 51 && c <= 67) || (c >= 80 && c <= 82) || c >= 95;
+const isSnowy = (c) => (c >= 71 && c <= 77) || c === 85 || c === 86;
+
+function formatHour(isoTime) {        // "2026-11-13T14:00" → "2 PM"
+  const h = Number(isoTime.slice(11, 13));
+  return (h % 12 || 12) + (h < 12 ? " AM" : " PM");
+}
+function dayName(isoDate, short = true) {   // "2026-11-13" → "Fri"
+  return new Date(isoDate + "T12:00").toLocaleDateString("en", { weekday: short ? "short" : "long" });
+}
+
+// Find where "this hour" sits inside the long hourly arrays.
+function currentHourIndex(data) {
+  const key = data.current.time.slice(0, 13) + ":00";   // "2026-11-13T14:15" → "2026-11-13T14:00"
+  const i = data.hourly.time.indexOf(key);
+  return i >= 0 ? i : 0;
+}
+
+// The same hour on each of the previous 7 days: 24, 48, ... 168 hours back.
+function pastSameHour(data) {
+  const i = currentHourIndex(data);
+  const out = [];
+  for (let k = 7; k >= 1; k--) {
+    const j = i - 24 * k;
+    if (j >= 0) out.push({ time: data.hourly.time[j], temp: data.hourly.temperature_2m[j] });
+  }
+  return out;
+}
+
+function renderAll() {
+  renderHome();
+  renderWeek();
+  applyAtmosphere();
+  if (currentPage() === "graphs") drawGraphs();
+}
+
+function renderHome() {
+  const d = state.data, c = d.current;
+  const [label, icon] = describe(c.weather_code, c.is_day);
+  $("#cond").textContent = `${icon} ${label}`;
+  $("#temp").textContent = Math.round(c.temperature_2m) + "°";
+  $("#feels").textContent = `Feels like ${Math.round(c.apparent_temperature)}°`;
+
+  // Today's high and low come from the "daily" arrays (find today's position first)
+  const t = todayIndex(d);
+  $("#hi").textContent = Math.round(d.daily.temperature_2m_max[t]) + "°";
+  $("#lo").textContent = Math.round(d.daily.temperature_2m_min[t]) + "°";
+  renderTip();
+
+  const past = pastSameHour(d);
+  if (!past.length) { $("#cmpBig").textContent = "—"; $("#cmpText").textContent = "Not enough past data."; return; }
+  const avg = past.reduce((sum, p) => sum + p.temp, 0) / past.length;
+  const diff = c.temperature_2m - avg;
+  const hourLabel = formatHour(d.hourly.time[currentHourIndex(d)]);
+
+  if (Math.abs(diff) < 0.5) {
+    $("#cmpBig").textContent = "≈ Normal";
+    $("#cmpText").textContent = `Right on this week's average for ${hourLabel} (${avg.toFixed(1)}°)`;
+  } else {
+    $("#cmpBig").textContent = (diff > 0 ? "▲ " : "▼ ") + Math.abs(diff).toFixed(1) + "°";
+    $("#cmpText").textContent =
+      `${diff > 0 ? "Warmer" : "Cooler"} than this week's average at ${hourLabel} (${avg.toFixed(1)}°)`;
+  }
+}
+
+// Because of past_days=7, the daily arrays start 7 days ago. Find today's spot.
+function todayIndex(d) {
+  const i = d.daily.time.indexOf(d.current.time.slice(0, 10));
+  return i >= 0 ? i : 0;
+}
+
+/* ---------- Personal tip with the user's name ---------- */
+function getName() {
+  try { return localStorage.getItem("skyglass-name") || ""; } catch (e) { return ""; }
+}
+
+function getTip(name) {
+  const d = state.data, c = d.current, t = todayIndex(d);
+  const temp = c.temperature_2m, code = c.weather_code, night = c.is_day === 0;
+  const hi = Math.round(d.daily.temperature_2m_max[t]);
+  const lo = Math.round(d.daily.temperature_2m_min[t]);
+  const rainLater = d.daily.precipitation_probability_max[t] ?? 0;
+  const n = name || "friend";
+
+  // Checked from most important to least: the first match wins
+  if (code >= 95)            return `⛈️ Thunderstorm! Stay indoors if you can, ${n}.`;
+  if (isSnowy(code))         return `❄️ It's snowing, ${n}! Wear your warmest coat and gloves.`;
+  if (isRainy(code))         return `☔ Wear a jacket and take an umbrella, ${n}!`;
+  if (temp >= 35)            return `🥵 It's very hot, ${n}! Drink lots of water and stay in the shade.`;
+  if (temp >= 30)            return `😎 Sunny and hot, ${n}! Sunglasses, sunscreen and a water bottle.`;
+  if (temp <= 10)            return `🧣 It's cold, ${n}! Wear a warm coat and a scarf.`;
+  if (temp <= 17)            return `🧥 Wear a jacket, ${n}, it's a bit chilly.`;
+  if (c.wind_speed_10m >= 30) return `💨 Very windy, ${n}! Hold on to your hat.`;
+  if ([45, 48].includes(code)) return `🌫️ It's foggy, ${n}. Be careful on the road.`;
+  if (rainLater >= 50)       return `🌂 Rain is likely later (${rainLater}%), ${n}. Take an umbrella just in case.`;
+  if (lo <= 15 && hi - lo >= 10 && !night)
+                             return `🧥 Nice now, but it drops to ${lo}° tonight. Take a light jacket, ${n}!`;
+  if (night)                 return `🌙 A calm night, ${n}. Sleep well!`;
+  return `🌼 Lovely weather, ${n}! Enjoy your day.`;
+}
+
+function renderTip() {
+  const name = getName();
+  const hasData = !!state.data;
+  // No name saved yet → show the form; otherwise show the tip
+  $("#nameForm").hidden = !!name;
+  $("#tipView").hidden = !name;
+  if (name && hasData) $("#tipText").textContent = getTip(name);  // textContent = safe, no HTML injection
+}
+
+$("#nameForm").addEventListener("submit", (e) => {
+  e.preventDefault();               // stop the form from reloading the page
+  const name = $("#nameInput").value.trim();
+  if (!name) return;
+  try { localStorage.setItem("skyglass-name", name); } catch (err) {}
+  renderTip();
+});
+$("#editName").addEventListener("click", () => {
+  $("#nameInput").value = getName();
+  $("#tipView").hidden = true;
+  $("#nameForm").hidden = false;
+  $("#nameInput").focus();
+});
+
+function renderWeek() {
+  const daily = state.data.daily;
+  const start = todayIndex(state.data);
+  const idx = [];
+  for (let i = start; i < Math.min(start + 7, daily.time.length); i++) idx.push(i);
+
+  const lows = idx.map((i) => daily.temperature_2m_min[i]);
+  const highs = idx.map((i) => daily.temperature_2m_max[i]);
+  const wMin = Math.min(...lows), wMax = Math.max(...highs), span = Math.max(1, wMax - wMin);
+
+  $("#weekList").innerHTML = idx.map((i, n) => {
+    const [label, icon] = describe(daily.weather_code[i]);
+    const lo = daily.temperature_2m_min[i], hi = daily.temperature_2m_max[i];
+    const rain = daily.precipitation_probability_max[i];
+    const left = ((lo - wMin) / span) * 100, width = Math.max(4, ((hi - lo) / span) * 100);
+    return `
+      <div class="glass day-card float">
+        <div class="day" role="button" tabindex="0" aria-expanded="false" data-i="${i}" title="${label}">
+          <div class="name">${n === 0 ? "Today" : dayName(daily.time[i])}</div>
+          <div class="ico">${icon}</div>
+          <div class="rain">💧 ${rain ?? 0}%</div>
+          <div class="range">
+            <span class="lo">${Math.round(lo)}°</span>
+            <div class="track"><div class="bar" style="left:${left}%;width:${width}%"></div></div>
+            <span>${Math.round(hi)}°</span>
+          </div>
+          <div class="chev">▾</div>
+        </div>
+        <div class="day-details" hidden></div>
+      </div>`;
+  }).join("");
+
+  // Click (or Enter key) on a day opens its details; only one open at a time
+  document.querySelectorAll("#weekList .day").forEach((row) => {
+    const toggle = () => {
+      const open = row.getAttribute("aria-expanded") === "true";
+      document.querySelectorAll("#weekList .day").forEach((r) => {
+        r.setAttribute("aria-expanded", "false");
+        r.nextElementSibling.hidden = true;
+      });
+      if (!open) {
+        row.setAttribute("aria-expanded", "true");
+        const box = row.nextElementSibling;
+        box.innerHTML = dayDetailsHTML(Number(row.dataset.i));
+        box.hidden = false;
+      }
+    };
+    row.addEventListener("click", toggle);
+    row.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+  });
+}
+
+function formatClock(isoTime) {     // "2026-11-13T06:12" → "6:12 AM"
+  const h = Number(isoTime.slice(11, 13)), m = isoTime.slice(14, 16);
+  return `${h % 12 || 12}:${m} ${h < 12 ? "AM" : "PM"}`;
+}
+
+function uvLabel(uv) {
+  if (uv < 3) return "Low";
+  if (uv < 6) return "Moderate";
+  if (uv < 8) return "High";
+  return "Very high";
+}
+
+// Everything about one day, built from the daily arrays (index i) + that day's hourly values
+function dayDetailsHTML(i) {
+  const d = state.data, daily = d.daily, date = daily.time[i];
+  const [label, icon] = describe(daily.weather_code[i]);
+  const val = (arr, digits = 0) => (arr && arr[i] != null ? Number(arr[i]).toFixed(digits) : "–");
+
+  const stats = [
+    ["🌡️", "Feels like", `${val(daily.apparent_temperature_max)}° / ${val(daily.apparent_temperature_min)}°`],
+    ["💧", "Rain chance", `${val(daily.precipitation_probability_max)}%`],
+    ["🌧️", "Total rain", `${val(daily.precipitation_sum, 1)} mm`],
+    ["💨", "Max wind", `${val(daily.wind_speed_10m_max)} km/h`],
+    ["☀️", "UV index", daily.uv_index_max && daily.uv_index_max[i] != null
+      ? `${val(daily.uv_index_max, 1)} · ${uvLabel(daily.uv_index_max[i])}` : "–"],
+    ["🌅", "Sunrise", daily.sunrise ? formatClock(daily.sunrise[i]) : "–"],
+    ["🌇", "Sunset", daily.sunset ? formatClock(daily.sunset[i]) : "–"],
+  ];
+
+  // Every 3 hours of that day from the hourly arrays
+  const start = d.hourly.time.indexOf(date + "T00:00");
+  let hours = "";
+  if (start >= 0) {
+    for (let h = 0; h < 24; h += 3) {
+      const j = start + h;
+      if (j >= d.hourly.time.length) break;
+      const [, hIcon] = describe(d.hourly.weather_code ? d.hourly.weather_code[j] : null,
+                                 d.hourly.is_day ? d.hourly.is_day[j] : 1);
+      hours += `
+        <div class="hour">
+          <div class="h-time">${formatHour(d.hourly.time[j])}</div>
+          <div class="h-ico">${hIcon}</div>
+          <div class="h-temp">${Math.round(d.hourly.temperature_2m[j])}°</div>
+          <div class="h-rain">💧${d.hourly.precipitation_probability[j] ?? 0}%</div>
+        </div>`;
+    }
+  }
+
+  return `
+    <div class="dd-title">${icon} ${dayName(date, false)}: ${label}</div>
+    <div class="stats">
+      ${stats.map(([e, k, v]) => `<div class="stat"><span>${e} ${k}</span><b>${v}</b></div>`).join("")}
+    </div>
+    ${hours ? `<div class="hours">${hours}</div>` : ""}`;
+}
+
+/* =====================================================================
+   Graphs, drawn by hand on <canvas>
+   ===================================================================== */
+function prepCanvas(canvas) {
+  const r = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = r.width * dpr;
+  canvas.height = r.height * dpr;
+  const g = canvas.getContext("2d");
+  g.scale(dpr, dpr);
+  g.font = "12px Nunito, sans-serif";
+  return { g, w: r.width, h: r.height };
+}
+
+function chartFrame(g, w, h, min, max, unit) {
+  const pad = { l: 38, r: 10, t: 12, b: 26 };
+  const y = (v) => pad.t + (1 - (v - min) / (max - min)) * (h - pad.t - pad.b);
+  g.strokeStyle = "rgba(255,255,255,0.15)";
+  g.fillStyle = "rgba(255,255,255,0.75)";
+  g.textAlign = "right"; g.textBaseline = "middle";
+  for (let s = 0; s <= 3; s++) {
+    const v = min + ((max - min) * s) / 3;
+    g.beginPath(); g.moveTo(pad.l, y(v)); g.lineTo(w - pad.r, y(v)); g.stroke();
+    g.fillText(Math.round(v) + unit, pad.l - 6, y(v));
+  }
+  return { pad, y };
+}
+
+// Little dark label box drawn on the canvas, kept inside the chart edges
+function drawTooltip(g, w, x, y, text) {
+  g.font = "bold 13px Nunito, sans-serif";
+  const tw = g.measureText(text).width + 20, th = 26;
+  const bx = Math.min(Math.max(x - tw / 2, 4), w - tw - 4);
+  let by = y - th - 12;
+  if (by < 2) by = y + 12;
+  g.fillStyle = "rgba(15,25,45,0.88)";
+  g.beginPath();
+  if (g.roundRect) g.roundRect(bx, by, tw, th, 8); else g.rect(bx, by, tw, th);
+  g.fill();
+  g.fillStyle = "#fff"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText(text, bx + tw / 2, by + th / 2);
+}
+
+// Redraws a chart with the point nearest the mouse/finger highlighted
+function makeInteractive(canvas, draw) {
+  canvas._draw = draw;
+  draw(null);
+  if (canvas._bound) return;
+  canvas._bound = true;
+  const pick = (e) => {
+    const mx = e.clientX - canvas.getBoundingClientRect().left;
+    let best = 0;
+    canvas._xs.forEach((x, i) => { if (Math.abs(x - mx) < Math.abs(canvas._xs[best] - mx)) best = i; });
+    canvas._draw(best);
+  };
+  canvas.addEventListener("pointermove", pick);
+  canvas.addEventListener("pointerdown", pick);
+  // On phones keep the label after lifting the finger; on a computer hide it when the mouse leaves
+  canvas.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") canvas._draw(null); });
+}
+
+function lineChart(canvas, labels, values, color, unit, hover = null) {
+  const { g, w, h } = prepCanvas(canvas);
+  let min = Math.min(...values), max = Math.max(...values);
+  if (max - min < 4) { min -= 2; max += 2; }
+  min = Math.floor(min - 1); max = Math.ceil(max + 1);
+  const { pad, y } = chartFrame(g, w, h, min, max, unit);
+  const x = (i) => pad.l + (i / (values.length - 1)) * (w - pad.l - pad.r);
+
+  // filled area under the line
+  const grad = g.createLinearGradient(0, pad.t, 0, h - pad.b);
+  grad.addColorStop(0, color + "88"); grad.addColorStop(1, color + "00");
+  g.beginPath(); g.moveTo(x(0), y(values[0]));
+  values.forEach((v, i) => g.lineTo(x(i), y(v)));
+  g.lineTo(x(values.length - 1), h - pad.b); g.lineTo(x(0), h - pad.b); g.closePath();
+  g.fillStyle = grad; g.fill();
+
+  g.beginPath(); values.forEach((v, i) => (i ? g.lineTo(x(i), y(v)) : g.moveTo(x(i), y(v))));
+  g.strokeStyle = color; g.lineWidth = 3; g.lineJoin = "round"; g.stroke();
+
+  g.fillStyle = "rgba(255,255,255,0.8)"; g.textAlign = "center"; g.textBaseline = "top";
+  labels.forEach((l, i) => {
+    if (i % 4 === 0) {
+      g.fillText(l, x(i), h - pad.b + 8);
+      g.beginPath(); g.arc(x(i), y(values[i]), 3.5, 0, Math.PI * 2); g.fillStyle = "#fff"; g.fill();
+      g.fillStyle = "rgba(255,255,255,0.8)";
+    }
+  });
+
+  canvas._xs = values.map((_, i) => x(i));   // remember where each point is, for hovering
+  if (hover != null) {
+    const hx = x(hover), hy = y(values[hover]);
+    g.setLineDash([4, 4]); g.strokeStyle = "rgba(255,255,255,0.55)"; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(hx, pad.t); g.lineTo(hx, h - pad.b); g.stroke(); g.setLineDash([]);
+    g.beginPath(); g.arc(hx, hy, 6, 0, Math.PI * 2);
+    g.fillStyle = color; g.fill(); g.lineWidth = 2; g.strokeStyle = "#fff"; g.stroke();
+    drawTooltip(g, w, hx, hy, `${labels[hover]} · ${values[hover].toFixed(1)}${unit}`);
+  }
+}
+
+function barChart(canvas, labels, values, opts, hover = null) {
+  const { g, w, h } = prepCanvas(canvas);
+  let min = opts.min ?? Math.floor(Math.min(...values) - 2);
+  let max = opts.max ?? Math.ceil(Math.max(...values) + 2);
+  const { pad, y } = chartFrame(g, w, h, min, max, opts.unit);
+  const slot = (w - pad.l - pad.r) / values.length;
+  const bw = Math.max(3, slot * 0.62);
+  values.forEach((v, i) => {
+    const cx = pad.l + slot * i + slot / 2;
+    const top = y(v), base = h - pad.b;
+    g.fillStyle = i === hover ? "#ffffff" : opts.highlightLast && i === values.length - 1 ? "#ffd36b" : opts.color;
+    g.beginPath();
+    if (g.roundRect) g.roundRect(cx - bw / 2, top, bw, Math.max(1, base - top), [5, 5, 0, 0]);
+    else g.rect(cx - bw / 2, top, bw, Math.max(1, base - top));
+    g.fill();
+    if (opts.labelEvery === 1 || i % (opts.labelEvery || 1) === 0) {
+      g.fillStyle = "rgba(255,255,255,0.8)"; g.textAlign = "center"; g.textBaseline = "top";
+      g.fillText(labels[i], cx, base + 8);
+    }
+    if (opts.showValues) {
+      g.textBaseline = "bottom"; g.fillStyle = "#fff";
+      g.fillText(v.toFixed(1) + "°", cx, top - 3);
+    }
+  });
+  if (opts.avg != null) {
+    g.setLineDash([6, 5]); g.strokeStyle = "rgba(255,255,255,0.9)"; g.lineWidth = 1.5;
+    g.beginPath(); g.moveTo(pad.l, y(opts.avg)); g.lineTo(w - pad.r, y(opts.avg)); g.stroke();
+    g.setLineDash([]);
+  }
+
+  canvas._xs = values.map((_, i) => pad.l + slot * i + slot / 2);
+  if (hover != null) {
+    const label = (opts.tipLabels || labels)[hover];
+    drawTooltip(g, w, canvas._xs[hover], y(values[hover]), `${label} · ${opts.fmt(values[hover])}`);
+  }
+}
+
+function drawGraphs() {
+  const d = state.data;
+  if (!d) return;
+  const i = currentHourIndex(d);
+  const times = d.hourly.time.slice(i, i + 24);
+  const hourLabels = times.map((t, n) => (n === 0 ? "Now" : formatHour(t)));
+
+  const temps = d.hourly.temperature_2m.slice(i, i + 24);
+  const tempCanvas = $("#chartTemp");
+  makeInteractive(tempCanvas, (h) => lineChart(tempCanvas, hourLabels, temps, "#ffd36b", "°", h));
+
+  const rain = d.hourly.precipitation_probability.slice(i, i + 24).map((v) => v ?? 0);
+  const rainCanvas = $("#chartRain");
+  makeInteractive(rainCanvas, (h) => barChart(rainCanvas, hourLabels, rain, {
+    min: 0, max: 100, unit: "%", color: "rgba(143,211,255,0.85)", labelEvery: 4,
+    fmt: (v) => v + "% chance of rain",
+  }, h));
+
+  const past = pastSameHour(d);
+  const vals = past.map((p) => p.temp).concat(d.current.temperature_2m);
+  const labels = past.map((p) => dayName(p.time.slice(0, 10))).concat("Now");
+  const tipLabels = past.map((p) => dayName(p.time.slice(0, 10), false) + " " + formatHour(p.time)).concat("Right now");
+  const avg = past.reduce((s, p) => s + p.temp, 0) / past.length;
+  const pastCanvas = $("#chartPast");
+  makeInteractive(pastCanvas, (h) => barChart(pastCanvas, labels, vals, {
+    unit: "°", color: "rgba(255,255,255,0.55)", highlightLast: true, avg, labelEvery: 1, showValues: true,
+    tipLabels, fmt: (v) => v.toFixed(1) + "°",
+  }, h));
+}
+
+/* =====================================================================
+   Atmosphere: sky colors, clouds, rain, stars, sun, buddy, sounds
+   ===================================================================== */
+const SKIES = {
+  clear:     "linear-gradient(180deg,#3d8fe0 0%,#7cc4f5 55%,#ffe2ad 100%)",
+  hot:       "linear-gradient(180deg,#f0a64b 0%,#f7c873 50%,#e98f4f 100%)",
+  cloudy:    "linear-gradient(180deg,#6f8aa6 0%,#9fb3c8 60%,#c9d4df 100%)",
+  rain:      "linear-gradient(180deg,#3c4f66 0%,#5b6f86 55%,#7d8fa2 100%)",
+  cold:      "linear-gradient(180deg,#5a9bd0 0%,#9cc9ea 60%,#e4f1fb 100%)",
+  night:     "linear-gradient(180deg,#070b1f 0%,#16224d 55%,#2f3f78 100%)",
+  nightRain: "linear-gradient(180deg,#0b111b 0%,#1d2a3c 60%,#2f3e52 100%)",
+};
+
+function getMood(c) {
+  if (isRainy(c.weather_code)) return "rain";
+  if (isSnowy(c.weather_code) || c.temperature_2m <= 14) return "cold";
+  if (c.temperature_2m >= 30) return "hot";
+  return "mild";
+}
+
+function setSky(gradient) {
+  const a = $("#skyA"), b = $("#skyB");
+  const showing = a.style.opacity === "1" ? a : b;
+  const next = showing === a ? b : a;
+  next.style.background = gradient;
+  next.style.opacity = "1";
+  showing.style.opacity = "0";
+}
+
+const rand = (min, max) => min + Math.random() * (max - min);
+
+function makeClouds(count, color) {
+  const layer = $("#clouds");
+  layer.innerHTML = "";
+  document.documentElement.style.setProperty("--cloud", color);
+  for (let n = 0; n < count; n++) {
+    const wrap = document.createElement("div");
+    wrap.className = "cloud-wrap";
+    const dur = rand(70, 150);
+    wrap.style.top = rand(8, 62) + "vh";
+    wrap.style.animationDuration = dur + "s";
+    wrap.style.animationDelay = -rand(0, dur) + "s";   // negative = start mid-way
+    const cloud = document.createElement("div");
+    cloud.className = "cloud";
+    cloud.style.setProperty("--s", rand(0.55, 1.25).toFixed(2));
+    cloud.style.opacity = rand(0.6, 1).toFixed(2);
+    wrap.appendChild(cloud);
+    wrap.addEventListener("click", () => {
+      cloud.classList.remove("puff"); void cloud.offsetWidth; cloud.classList.add("puff");
+      SoundEngine.chime();
+    });
+    layer.appendChild(wrap);
+  }
+}
+
+function makeRain(on) {
+  const layer = $("#rain");
+  layer.innerHTML = "";
+  if (!on) return;
+  for (let n = 0; n < 90; n++) {
+    const d = document.createElement("div");
+    d.className = "drop";
+    d.style.left = rand(0, 105) + "vw";
+    const dur = rand(0.55, 1);
+    d.style.animationDuration = dur + "s";
+    d.style.animationDelay = -rand(0, dur) + "s";
+    d.style.opacity = rand(0.3, 0.9).toFixed(2);
+    layer.appendChild(d);
+  }
+}
+
+function makeStars(on) {
+  const layer = $("#stars");
+  if (!layer.children.length) {
+    for (let n = 0; n < 70; n++) {
+      const s = document.createElement("div");
+      s.className = "star";
+      s.style.left = rand(0, 100) + "vw";
+      s.style.top = rand(0, 60) + "vh";
+      s.style.animationDelay = -rand(0, 3) + "s";
+      s.style.opacity = rand(0.4, 1).toFixed(2);
+      layer.appendChild(s);
+    }
+  }
+  layer.style.opacity = on ? "1" : "0";
+}
+
+function applyAtmosphere() {
+  const c = state.data.current;
+  const night = c.is_day === 0;
+  const rainy = isRainy(c.weather_code);
+  const mood = getMood(c);
+  const cloudy = c.cloud_cover > 60 || [2, 3, 45, 48].includes(c.weather_code);
+
+  let sky = "clear";
+  if (night) sky = rainy ? "nightRain" : "night";
+  else if (rainy) sky = "rain";
+  else if (mood === "hot") sky = "hot";
+  else if (cloudy) sky = "cloudy";
+  else if (mood === "cold") sky = "cold";
+  setSky(SKIES[sky]);
+
+  const cloudColor = rainy ? "rgba(205,214,226,0.9)" : night ? "rgba(170,182,220,0.45)" : "rgba(255,255,255,0.92)";
+  makeClouds(Math.min(9, 3 + Math.round((c.cloud_cover || 0) / 18)), cloudColor);
+  makeRain(rainy);
+  makeStars(night && !rainy);
+
+  const sun = $("#sun");
+  sun.classList.toggle("moon", night);
+  sun.classList.toggle("hidden", rainy || (cloudy && c.cloud_cover > 85));
+
+  Buddy.setMood(mood, night);
+
+  // Pick the ambient soundscape
+  let ambient = "breeze";
+  if (rainy) ambient = "rain";
+  else if (mood === "hot" && !night) ambient = "heat";
+  else if (night) ambient = "night";
+  else if (c.wind_speed_10m >= 20 || cloudy) ambient = "wind";
+  SoundEngine.setAmbient(ambient);
+}
+
+/* =====================================================================
+   The weather buddy
+   ===================================================================== */
+const Buddy = {
+  mood: "mild", night: false, timer: null,
+  lines: {
+    rain:  ["Good thing I brought my umbrella! ☔", "Puddle jumping later? 💦", "Rain chance today: very yes."],
+    hot:   ["It's {t}°… I'm melting! 🫠", "Sunglasses on. Water bottle on. 😎", "Find some shade, friend!"],
+    cold:  ["Brrr, {t}°! Scarf time 🧣", "Hot tea weather ☕", "My nose is cold!"],
+    mild:  ["{t}° — just right! 🌼", "Perfect day for a walk.", "Tap the clouds, they sing ☁️🎵"],
+    night: ["Shh… the stars are out ✨", "{t}° tonight. Sweet dreams 🌙", "Tap a cloud for a lullaby ☁️"],
+  },
+  setMood(mood, night) {
+    this.mood = mood; this.night = night;
+    $("#umbrella").classList.toggle("show", mood === "rain");
+    $("#shades").classList.toggle("show", mood === "hot");
+    $("#scarf").classList.toggle("show", mood === "cold");
+  },
+  speak() {
+    const key = this.mood === "mild" && this.night ? "night" : this.mood;
+    const list = this.lines[key];
+    const t = state.data ? Math.round(state.data.current.temperature_2m) : "--";
+    const text = list[Math.floor(Math.random() * list.length)].replace("{t}", t);
+    const b = $("#bubble");
+    b.textContent = text;
+    b.classList.add("show");
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => b.classList.remove("show"), 3500);
+    const el = $("#buddy");
+    el.classList.remove("hop"); void el.offsetWidth; el.classList.add("hop");
+    SoundEngine.boop();
+  },
+};
+$("#buddy").addEventListener("click", () => Buddy.speak());
+
+/* =====================================================================
+   Sound: everything is generated live with the Web Audio API (no files).
+   Browsers block sound until the user clicks/taps once, so the ambient
+   sound starts on your first tap anywhere on the page.
+   ===================================================================== */
+const SoundEngine = {
+  ctx: null, master: null, enabled: true, current: null, wanted: null, noiseBuf: null,
+
+  ensure() {
+    if (!this.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return false;
+      this.ctx = new AC();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = this.enabled ? 0.8 : 0;
+      this.master.connect(this.ctx.destination);
+    }
+    if (this.ctx.state === "suspended") this.ctx.resume();
+    return true;
+  },
+
+  setEnabled(on) {
+    this.enabled = on;
+    if (on) { this.ensure(); this.setAmbient(this.wanted); }
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.master.gain.cancelScheduledValues(t);
+    this.master.gain.setTargetAtTime(on ? 0.8 : 0, t, 0.25);
+  },
+
+  // White noise = random numbers. Filtering it makes rain, wind, etc.
+  noise() {
+    if (!this.noiseBuf) {
+      const len = this.ctx.sampleRate * 2;
+      this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const data = this.noiseBuf.getChannelData(0);
+      for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    }
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuf;
+    src.loop = true;
+    return src;
+  },
+
+  layer(level) {
+    const out = this.ctx.createGain();
+    out.gain.value = 0;
+    out.gain.setTargetAtTime(level, this.ctx.currentTime, 0.8); // fade in
+    out.connect(this.master);
+    const L = { out, nodes: [], timers: [] };
+    L.stop = () => {
+      const t = this.ctx.currentTime;
+      out.gain.cancelScheduledValues(t);
+      out.gain.setTargetAtTime(0, t, 0.4);                     // fade out
+      L.timers.forEach(clearInterval);
+      setTimeout(() => { L.nodes.forEach((n) => { try { n.stop(); } catch (e) {} }); out.disconnect(); }, 2500);
+    };
+    return L;
+  },
+
+  addWind(L, amount) {
+    const c = this.ctx;
+    const n = this.noise();
+    // Lowpass keeps only the deep part of the noise → "whoosh", not rain-like hiss
+    const bp = c.createBiquadFilter(); bp.type = "lowpass"; bp.frequency.value = 320; bp.Q.value = 2;
+    const lfo = c.createOscillator(); lfo.frequency.value = 0.12;      // slow "whoosh"
+    const lfoGain = c.createGain(); lfoGain.gain.value = 180;
+    lfo.connect(lfoGain).connect(bp.frequency);
+    const vol = c.createGain(); vol.gain.value = amount;
+    const lfo2 = c.createOscillator(); lfo2.frequency.value = 0.07;    // gusts
+    const lfo2Gain = c.createGain(); lfo2Gain.gain.value = amount * 0.6;
+    lfo2.connect(lfo2Gain).connect(vol.gain);
+    n.connect(bp).connect(vol).connect(L.out);
+    n.start(0, Math.random()); lfo.start(); lfo2.start();
+    L.nodes.push(n, lfo, lfo2);
+  },
+
+  builders: {
+    rain() {
+      const c = this.ctx, L = this.layer(0.55);
+      const n = this.noise();
+      const hp = c.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 1000;
+      const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 7000;
+      const g = c.createGain(); g.gain.value = 0.3;
+      n.connect(hp).connect(lp).connect(g).connect(L.out); n.start();
+      const n2 = this.noise();
+      const lp2 = c.createBiquadFilter(); lp2.type = "lowpass"; lp2.frequency.value = 450;
+      const g2 = c.createGain(); g2.gain.value = 0.5;
+      n2.connect(lp2).connect(g2).connect(L.out); n2.start(0, 0.7);
+      L.nodes.push(n, n2);
+      L.timers.push(setInterval(() => { if (Math.random() < 0.6) this.drip(L.out); }, 170));
+      return L;
+    },
+    wind()   { const L = this.layer(0.7); this.addWind(L, 0.6); return L; },
+    breeze() { const L = this.layer(0.3); this.addWind(L, 0.3); return L; },
+    heat() {
+      const c = this.ctx, L = this.layer(0.5);
+      // low warm drone
+      const trem = c.createGain(); trem.gain.value = 0.06;
+      const tl = c.createOscillator(); tl.frequency.value = 0.2;
+      const tlg = c.createGain(); tlg.gain.value = 0.03; tl.connect(tlg).connect(trem.gain);
+      trem.connect(L.out);
+      [55, 82.5].forEach((f) => { const o = c.createOscillator(); o.frequency.value = f; o.connect(trem); o.start(); L.nodes.push(o); });
+      tl.start(); L.nodes.push(tl);
+      // cicadas: high noise switched on/off very fast
+      const n = this.noise();
+      const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 5200; bp.Q.value = 6;
+      const gate = c.createGain(); gate.gain.value = 0.5;
+      const sq = c.createOscillator(); sq.type = "square"; sq.frequency.value = 28;
+      const sqg = c.createGain(); sqg.gain.value = 0.5; sq.connect(sqg).connect(gate.gain);
+      const swell = c.createGain(); swell.gain.value = 0.12;
+      const sl = c.createOscillator(); sl.frequency.value = 0.09;
+      const slg = c.createGain(); slg.gain.value = 0.12; sl.connect(slg).connect(swell.gain);
+      n.connect(bp).connect(gate).connect(swell).connect(L.out);
+      n.start(); sq.start(); sl.start(); L.nodes.push(n, sq, sl);
+      this.addWind(L, 0.15);
+      return L;
+    },
+    night() {
+      const L = this.layer(0.6);
+      this.addWind(L, 0.06);   // barely-there air; the crickets are the main sound
+      L.timers.push(setInterval(() => { if (Math.random() < 0.7) this.cricket(L.out); }, 900));
+      return L;
+    },
+  },
+
+  setAmbient(kind) {
+    this.wanted = kind;
+    if (!this.ctx || !this.enabled || !kind) return;  // waits for the first tap
+    if (this.current && this.current.kind === kind) return;
+    if (this.current) this.current.stop();
+    this.current = this.builders[kind].call(this);
+    this.current.kind = kind;
+  },
+
+  drip(dest) {
+    const c = this.ctx, t = c.currentTime;
+    const o = c.createOscillator(), g = c.createGain();
+    o.frequency.setValueAtTime(rand(1800, 4000), t);
+    o.frequency.exponentialRampToValueAtTime(600, t + 0.06);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(rand(0.01, 0.05), t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+    o.connect(g).connect(dest); o.start(t); o.stop(t + 0.1);
+  },
+
+  cricket(dest) {
+    const c = this.ctx; let t = c.currentTime;
+    const f = rand(4000, 4600);
+    for (let i = 0; i < 3; i++) {
+      const o = c.createOscillator(), g = c.createGain();
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.06, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+      o.connect(g).connect(dest); o.start(t); o.stop(t + 0.06);
+      t += 0.08;
+    }
+  },
+
+  // Soft bell for tapping a cloud: a random note from a calm (pentatonic) scale
+  chime() {
+    if (!this.enabled || !this.ensure()) return;
+    const c = this.ctx, t = c.currentTime;
+    const notes = [523.25, 587.33, 659.25, 783.99, 880];
+    const f = notes[Math.floor(Math.random() * notes.length)];
+    [[1, "sine", 0.18], [2, "triangle", 0.04]].forEach(([mult, type, vol]) => {
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = type; o.frequency.value = f * mult;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 1.8);
+      o.connect(g).connect(this.master); o.start(t); o.stop(t + 1.9);
+    });
+  },
+
+  boop() {
+    if (!this.enabled || !this.ensure()) return;
+    const c = this.ctx; let t = c.currentTime;
+    [440, 660].forEach((f) => {
+      const o = c.createOscillator(), g = c.createGain();
+      o.frequency.setValueAtTime(f * 0.8, t);
+      o.frequency.exponentialRampToValueAtTime(f, t + 0.08);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.15, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+      o.connect(g).connect(this.master); o.start(t); o.stop(t + 0.2);
+      t += 0.11;
+    });
+  },
+};
+
+// First tap anywhere wakes the audio up (browser autoplay rule).
+document.addEventListener("pointerdown", () => {
+  if (SoundEngine.enabled && SoundEngine.ensure()) SoundEngine.setAmbient(SoundEngine.wanted);
+});
+$("#soundBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  SoundEngine.setEnabled(!SoundEngine.enabled);
+  e.currentTarget.textContent = SoundEngine.enabled ? "🔊" : "🔇";
+});
+
+/* =====================================================================
+   City search (geocoding API)
+   ===================================================================== */
+let searchTimer = null, searchToken = 0;
+const input = $("#q"), results = $("#results");
+
+input.addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  const q = input.value.trim();
+  if (q.length < 2) { results.classList.remove("open"); return; }
+  // "Debounce": wait until typing pauses, so we don't call the API on every key.
+  searchTimer = setTimeout(async () => {
+    const token = ++searchToken;
+    try {
+      const list = await searchCity(q);
+      if (token !== searchToken) return;
+      results.innerHTML = list.length
+        ? list.map((r, i) => `<button data-i="${i}">${r.name}<br><small>${[r.admin1, r.country].filter(Boolean).join(", ")}</small></button>`).join("")
+        : `<button disabled>No places found</button>`;
+      results.classList.add("open");
+      results.querySelectorAll("button[data-i]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const r = list[btn.dataset.i];
+          loadPlace({ name: [r.name, r.country].filter(Boolean).join(", "), lat: r.latitude, lon: r.longitude });
+          results.classList.remove("open");
+          input.value = "";
+          input.blur();
+        });
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  }, 350);
+});
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { const first = results.querySelector("button[data-i]"); if (first) first.click(); }
+  if (e.key === "Escape") results.classList.remove("open");
+});
+document.addEventListener("click", (e) => { if (!e.target.closest(".search")) results.classList.remove("open"); });
+
+/* =====================================================================
+   Tiny router: #home, #week, #graphs
+   ===================================================================== */
+function currentPage() {
+  const p = location.hash.slice(1);
+  return ["home", "week", "graphs"].includes(p) ? p : "home";
+}
+function route() {
+  const page = currentPage();
+  document.querySelectorAll(".page").forEach((s) => s.classList.toggle("active", s.id === "page-" + page));
+  document.querySelectorAll("nav a").forEach((a) => a.classList.toggle("active", a.getAttribute("href") === "#" + page));
+  if (page === "graphs") requestAnimationFrame(drawGraphs);  // canvas must be visible to measure it
+}
+window.addEventListener("hashchange", route);
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { if (currentPage() === "graphs") drawGraphs(); }, 150);
+});
+
+/* ---------- Start ---------- */
+route();
+renderTip();
+let saved = null;
+try { saved = JSON.parse(localStorage.getItem("skyglass-place")); } catch (e) {}
+loadPlace(saved && saved.lat != null ? saved : DEFAULT_PLACE);
+</script>
+</body>
+</html>
